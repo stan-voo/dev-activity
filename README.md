@@ -2,7 +2,15 @@
 
 **Dev Activity** watches a folder of projects (e.g. your `~/dev` directory) for file changes and generates a **GitHub-style activity graph**. Each day is a small square; color indicates which project (top-level subfolder) you worked in, and intensity reflects how much activity happened that day.
 
-For a step-by-step walkthrough with runnable commands, see **[walkthrough.md](walkthrough.md)** (verifiable with [showboat](https://github.com/simonw/showboat): `uvx showboat verify walkthrough.md`).
+## Walkthrough
+
+**[walkthrough.md](walkthrough.md)** is a step-by-step demo of this project. It’s a [showboat](https://github.com/simonw/showboat) document: it mixes commentary, executable bash blocks, and captured output. You can read it as a guide and run the commands yourself, or verify that the recorded outputs still match by running:
+
+```bash
+uvx showboat verify walkthrough.md
+```
+
+If every code block runs and the outputs match, the walkthrough is still valid.
 
 ## Setup
 
