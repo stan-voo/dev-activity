@@ -1,0 +1,6 @@
+.venv/
+activity.jsonl
+activity.jsonl.bak
+activity-graph.html
+watch.log
+watch.err
