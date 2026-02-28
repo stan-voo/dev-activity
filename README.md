@@ -2,6 +2,8 @@
 
 **Dev Activity** watches a folder of projects (e.g. your `~/dev` directory) for file changes and generates a **GitHub-style activity graph**. Each day is a small square; color indicates which project (top-level subfolder) you worked in, and intensity reflects how much activity happened that day.
 
+![Activity graph screenshot](activity-graph.png)
+
 ## Walkthrough
 
 **[walkthrough.md](walkthrough.md)** is a step-by-step demo of this project. It’s a [showboat](https://github.com/simonw/showboat) document: it mixes commentary, executable bash blocks, and captured output. You can read it as a guide and run the commands yourself, or verify that the recorded outputs still match by running:
