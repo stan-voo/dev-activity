@@ -65,7 +65,7 @@ Writes `activity-graph.html` here. Open it in a browser to see the calendar: eac
 To generate and open in your default browser:
 
 ```bash
-python dev_activity.py graph --open
+cd ~/dev/dev-activity && .venv/bin/python dev_activity.py graph --open
 ```
 
 ## Files
