@@ -245,7 +245,10 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
             date_key = f"{year}-{month:02d}-{day:02d}"
             projs = activity.get(date_key, {})
             if not projs:
-                row_cells.append(f'<span class="cell none" title="{date_key}"></span>')
+                # Weekend (Sat=5, Sun=6) with no activity: show as day off
+                weekday = datetime(year, month, day).weekday()
+                weekend_class = " weekend" if weekday >= 5 else ""
+                row_cells.append(f'<span class="cell none{weekend_class}" title="{date_key}"></span>')
                 continue
             # Sort by count descending for stable stripe order
             proj_list = sorted(projs.items(), key=lambda x: -x[1])
@@ -286,7 +289,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Dev activity</title>
+  <title>Project activity</title>
   <style>
     :root {{ font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; }}
     body {{ max-width: 900px; margin: 1rem auto; padding: 1rem; }}
@@ -299,6 +302,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
     .cell {{ width: 12px; height: 12px; border-radius: 2px; display: inline-block; }}
     .cell.empty {{ background: transparent; }}
     .cell.none {{ background: #21262d; }}
+    .cell.none.weekend {{ opacity: 0.45; background: linear-gradient(135deg, transparent 46%, rgba(255,255,255,0.12) 50%, transparent 54%), #21262d; }}
     .cell.low {{ opacity: 0.85; }}
     .cell.mid {{ opacity: 1; }}
     .cell.high {{ box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }}
@@ -308,8 +312,8 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
   </style>
 </head>
 <body>
-  <h1>Dev activity</h1>
-  <p class="subtitle">Days with file changes, by project (from activity log)</p>
+  <h1>Project activity</h1>
+  <p class="subtitle">Days with file changes, by project (from activity log in the current working directory)</p>
   <div class="grid">
     {"".join(month_rows)}
   </div>
