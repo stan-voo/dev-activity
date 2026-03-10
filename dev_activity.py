@@ -37,7 +37,7 @@ IGNORED_PATH_PARTS = frozenset({
 DEBOUNCE_SECONDS = 300  # 5 minutes
 
 # Projects to never log (e.g. the watcher project itself)
-IGNORED_PROJECTS = frozenset({"dev-activity"})
+IGNORED_PROJECTS = frozenset({"dev-activity", "PKM-IV"})
 
 # Distinct hues for projects (HSV-style, then we'll use HSL in CSS)
 PROJECT_HUES = [
@@ -168,7 +168,7 @@ def load_activity(log_path: Path) -> dict[str, dict[str, int]]:
                 entry = json.loads(line)
                 d = entry.get("date")
                 p = entry.get("project")
-                if d and p:
+                if d and p and p not in IGNORED_PROJECTS:
                     by_date[d][p] += 1
             except json.JSONDecodeError:
                 continue
