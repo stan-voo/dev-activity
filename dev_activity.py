@@ -36,8 +36,15 @@ IGNORED_PATH_PARTS = frozenset({
 # Only log at most one entry per project per this many seconds
 DEBOUNCE_SECONDS = 300  # 5 minutes
 
-# Projects to never log (e.g. the watcher project itself)
-IGNORED_PROJECTS = frozenset({"dev-activity", "PKM-IV"})
+# Projects to never log (e.g. the watcher project itself). Comparison is case-insensitive.
+IGNORED_PROJECTS = frozenset({"dev-activity", "PKM-IV", "pkm-iv.code-workspace"})
+
+
+def is_ignored_project(project: str) -> bool:
+    """True if this project name should be excluded from logging and graph."""
+    if not project:
+        return True
+    return project.upper() in {p.upper() for p in IGNORED_PROJECTS}
 
 # Distinct hues for projects (HSV-style, then we'll use HSL in CSS)
 PROJECT_HUES = [
@@ -115,7 +122,7 @@ def run_watch(dev_folder: str) -> None:
             if should_ignore_path(path, self._log_path, self._graph_path):
                 return
             project = get_project_name(self._dev_root, src_path)
-            if not project or project in IGNORED_PROJECTS:
+            if not project or is_ignored_project(project):
                 return
             now = datetime.now().timestamp()
             last = self._last_log.get(project, 0)
@@ -168,7 +175,7 @@ def load_activity(log_path: Path) -> dict[str, dict[str, int]]:
                 entry = json.loads(line)
                 d = entry.get("date")
                 p = entry.get("project")
-                if d and p and p not in IGNORED_PROJECTS:
+                if d and p and not is_ignored_project(p):
                     by_date[d][p] += 1
             except json.JSONDecodeError:
                 continue
