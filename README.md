@@ -68,12 +68,30 @@ To generate and open in your default browser:
 cd ~/dev/dev-activity && .venv/bin/python dev_activity.py graph --open
 ```
 
+Archived projects are hidden by default in the graph UI and can be toggled with **Show archived projects**.
+
+**3. Archive or unarchive projects**
+
+```bash
+# Hide a project by default in graph output
+python dev_activity.py archive ytt
+
+# Show archived projects list
+python dev_activity.py archives
+
+# Remove from archive list
+python dev_activity.py unarchive ytt
+```
+
+Archive state is stored in `archived-projects.json` in the current directory.
+
 ## Files
 
 | File                 | Purpose |
 |----------------------|--------|
 | `activity.jsonl`     | Log of events (one JSON object per line). Keep this file to preserve history. |
 | `activity-graph.html`| Generated graph. Regenerate anytime with `graph`. |
+| `archived-projects.json` | Optional list of archived projects hidden by default in graph view. |
 
 ## Run in the background (survives closing the terminal)
 
