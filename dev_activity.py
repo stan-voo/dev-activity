@@ -14,6 +14,7 @@ in the current working directory.
 
 import argparse
 import calendar
+import html
 import json
 import os
 import subprocess
@@ -37,7 +38,7 @@ IGNORED_PATH_PARTS = frozenset({
 DEBOUNCE_SECONDS = 300  # 5 minutes
 
 # Projects to never log (e.g. the watcher project itself). Comparison is case-insensitive.
-IGNORED_PROJECTS = frozenset({"dev-activity", "PKM-IV", "pkm-iv.code-workspace"})
+IGNORED_PROJECTS = frozenset({"dev-activity", "PKM-IV", "pkm-iv.code-workspace", "pkm"})
 
 
 def is_ignored_project(project: str) -> bool:
@@ -49,6 +50,13 @@ def is_ignored_project(project: str) -> bool:
 # Distinct hues for projects (HSV-style, then we'll use HSL in CSS)
 PROJECT_HUES = [
     0, 30, 60, 120, 180, 220, 260, 300,  # red, orange, yellow, green, cyan, blue, purple, magenta
+]
+
+# Stripe overlays used only after we exhaust distinct base hues.
+OVERFLOW_STRIPE_PATTERNS = [
+    "repeating-linear-gradient(45deg, rgba(255,255,255,0.62) 0 2px, transparent 2px 5px)",
+    "repeating-linear-gradient(-45deg, rgba(255,255,255,0.62) 0 2px, transparent 2px 5px)",
+    "repeating-linear-gradient(0deg, rgba(255,255,255,0.56) 0 2px, transparent 2px 5px)",
 ]
 
 
@@ -194,6 +202,15 @@ def project_color_light(project: str, index: int) -> str:
     return f"hsl({hue}, 55%, 55%)"
 
 
+def project_pattern(index: int) -> str | None:
+    """Return stripe overlay only when project index exceeds base hue palette."""
+    palette_size = len(PROJECT_HUES)
+    cycle = index // palette_size
+    if cycle == 0:
+        return None
+    return OVERFLOW_STRIPE_PATTERNS[(cycle - 1) % len(OVERFLOW_STRIPE_PATTERNS)]
+
+
 def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
     """Generate GitHub-style activity graph HTML."""
     activity = load_activity(log_path)
@@ -213,6 +230,13 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
     project_index = {p: i for i, p in enumerate(project_order)}
     color_for = lambda p: project_color(p, project_index[p])
     color_light_for = lambda p: project_color_light(p, project_index[p])
+    pattern_for = lambda p: project_pattern(project_index[p])
+
+    def style_for_project(p: str, color: str) -> str:
+        pattern = pattern_for(p)
+        if pattern is None:
+            return f"background:{color}"
+        return f"background-image:{pattern}, linear-gradient({color}, {color})"
 
     # Date range: from first log to today, or last 12 months
     today = datetime.now().date()
@@ -255,11 +279,12 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
             total = sum(projs.values())
             intensity = "high" if total >= 10 else "mid" if total >= 3 else "low"
             tip = ", ".join(f"{p}: {c}" for p, c in proj_list)
+            tip_escaped = html.escape(f"{date_key}: {tip}", quote=True)
             if len(proj_list) == 1:
                 p = proj_list[0][0]
                 color = color_light_for(p) if intensity == "high" else color_for(p)
                 row_cells.append(
-                    f'<span class="cell {intensity}" style="background:{color}" title="{date_key}: {tip}"></span>'
+                    f'<span class="cell {intensity}" style="{style_for_project(p, color)}" title="{tip_escaped}"></span>'
                 )
             else:
                 # Multiple projects: horizontal stripes (gradient)
@@ -272,7 +297,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
                     stops.append(f"{color} {pct_next}%")
                 gradient = "linear-gradient(to bottom, " + ", ".join(stops) + ")"
                 row_cells.append(
-                    f'<span class="cell {intensity}" style="background:{gradient}" title="{date_key}: {tip}"></span>'
+                    f'<span class="cell {intensity}" style="background:{gradient}" title="{tip_escaped}"></span>'
                 )
         month_label = datetime(year, month, 1).strftime("%b %Y")
         month_rows.append(
@@ -281,11 +306,12 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
         )
 
     legend = "".join(
-        f'<span class="legend-item" style="background:{color_for(p)}"></span><span class="legend-name">{p}</span>'
+        f'<span class="legend-item" style="{style_for_project(p, color_for(p))}"></span>'
+        f'<span class="legend-name">{html.escape(p)}</span>'
         for p in project_order
     )
 
-    html = f"""<!DOCTYPE html>
+    html_doc = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -324,7 +350,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool) -> None:
 </html>
 """
 
-    out_path.write_text(html, encoding="utf-8")
+    out_path.write_text(html_doc, encoding="utf-8")
     print(f"Wrote {out_path}")
 
     if open_browser:
