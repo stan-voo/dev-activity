@@ -419,9 +419,11 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
     .cell.empty {{ background: transparent; }}
     .cell.none {{ background: #21262d; }}
     .cell.none.weekend {{ opacity: 0.45; background: linear-gradient(135deg, transparent 46%, rgba(255,255,255,0.12) 50%, transparent 54%), #21262d; }}
-    .cell.low {{ opacity: 0.85; }}
-    .cell.mid {{ opacity: 1; }}
+    .cell.low {{ opacity: 0.58; filter: saturate(0.72); }}
+    .cell.mid {{ opacity: 0.94; }}
     .cell.high {{ box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }}
+    .intensity-legend {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 0.75rem; font-size: 12px; color: #8b949e; }}
+    .intensity-entry {{ display: inline-flex; align-items: center; gap: 6px; }}
     .legend {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 1rem; font-size: 12px; }}
     .legend-entry {{ display: inline-flex; align-items: center; gap: 6px; }}
     .legend-entry.archived .legend-name {{ opacity: 0.55; }}
@@ -438,6 +440,12 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
   </div>
   <div class="grid">
     {"".join(month_rows)}
+  </div>
+  <div class="intensity-legend">
+    <span>Intensity:</span>
+    <span class="intensity-entry"><span class="legend-item cell low" style="background:#6e7681"></span><span>low (1-2)</span></span>
+    <span class="intensity-entry"><span class="legend-item cell mid" style="background:#6e7681"></span><span>mid (3-9)</span></span>
+    <span class="intensity-entry"><span class="legend-item cell high" style="background:#6e7681"></span><span>high (10+) with border</span></span>
   </div>
   <div class="legend">
     {legend}
