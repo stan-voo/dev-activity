@@ -304,6 +304,24 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
             return f"background:{color}"
         return f"background-image:{pattern}, linear-gradient({color}, {color})"
 
+    def segments_html_for_projects(proj_list: list[tuple[str, int]], intensity: str) -> str:
+        """Render stacked per-project segments so pattern styles work in multi-project days."""
+        total = sum(c for _, c in proj_list)
+        if total <= 0:
+            return ""
+        pieces: list[str] = []
+        acc = 0.0
+        for p, c in proj_list:
+            start_pct = (acc / total) * 100
+            acc += c
+            end_pct = (acc / total) * 100
+            color = color_light_for(p) if intensity == "high" else color_for(p)
+            style = style_for_project(p, color)
+            pieces.append(
+                f'<span class="cell-segment" style="top:{start_pct:.4f}%;height:{(end_pct - start_pct):.4f}%;{style}"></span>'
+            )
+        return "".join(pieces)
+
     # Date range: from first log to today, or last 12 months
     today = datetime.now().date()
     if activity:
@@ -351,25 +369,9 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
             tip_escaped = html.escape(f"{date_key}: {tip}", quote=True)
             project_data = html.escape("|".join(p for p, _ in proj_list), quote=True)
             project_counts_json = html.escape(json.dumps(proj_list), quote=True)
-            if len(proj_list) == 1:
-                p = proj_list[0][0]
-                color = color_light_for(p) if intensity == "high" else color_for(p)
-                row_cells.append(
-                    f'<span class="cell project-cell {intensity}" data-date="{date_key}" data-projects="{project_data}" data-proj-counts="{project_counts_json}" style="{style_for_project(p, color)}" title="{tip_escaped}"></span>'
-                )
-            else:
-                # Multiple projects: horizontal stripes (gradient)
-                stops = []
-                for i, (p, c) in enumerate(proj_list):
-                    color = color_light_for(p) if intensity == "high" else color_for(p)
-                    pct = (sum(c for _, c in proj_list[:i]) / total) * 100
-                    pct_next = (sum(c for _, c in proj_list[: i + 1]) / total) * 100
-                    stops.append(f"{color} {pct}%")
-                    stops.append(f"{color} {pct_next}%")
-                gradient = "linear-gradient(to bottom, " + ", ".join(stops) + ")"
-                row_cells.append(
-                    f'<span class="cell project-cell {intensity}" data-date="{date_key}" data-projects="{project_data}" data-proj-counts="{project_counts_json}" style="background:{gradient}" title="{tip_escaped}"></span>'
-                )
+            row_cells.append(
+                f'<span class="cell project-cell {intensity}" data-date="{date_key}" data-projects="{project_data}" data-proj-counts="{project_counts_json}" title="{tip_escaped}">{segments_html_for_projects(proj_list, intensity)}</span>'
+            )
         month_label = datetime(year, month, 1).strftime("%b %Y")
         month_rows.append(
             f'<div class="month-row"><span class="month-label">{month_label}</span>'
@@ -415,6 +417,8 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
     .month-label {{ width: 64px; font-size: 11px; color: #8b949e; }}
     .month-cells {{ display: flex; flex-wrap: wrap; gap: 2px; }}
     .cell {{ width: 12px; height: 12px; border-radius: 2px; display: inline-block; }}
+    .project-cell {{ position: relative; overflow: hidden; }}
+    .cell-segment {{ position: absolute; left: 0; width: 100%; display: block; pointer-events: none; }}
     .cell.filtered {{ visibility: hidden; }}
     .cell.empty {{ background: transparent; }}
     .cell.none {{ background: #21262d; }}
@@ -490,6 +494,26 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
         cell.classList.add(intensity);
       }}
 
+      function segmentStyle(projectName, intensity) {{
+        return projectStyles[projectName]?.[intensity === "high" ? "highStyle" : "lowStyle"] || "background:#6e7681";
+      }}
+
+      function renderSegments(cell, entries, intensity) {{
+        cell.innerHTML = "";
+        const total = entries.reduce((sum, [, c]) => sum + c, 0);
+        if (!total) return;
+        let acc = 0;
+        for (const [projectName, count] of entries) {{
+          const startPct = (acc / total) * 100;
+          acc += count;
+          const endPct = (acc / total) * 100;
+          const segment = document.createElement("span");
+          segment.className = "cell-segment";
+          segment.style.cssText = `top:${{startPct}}%;height:${{endPct - startPct}}%;${{segmentStyle(projectName, intensity)}}`;
+          cell.appendChild(segment);
+        }}
+      }}
+
       for (const cell of projectCells) {{
         const dateKey = cell.getAttribute("data-date") || "";
         const allEntries = parseProjectCounts(cell)
@@ -501,7 +525,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
 
         if (visibleEntries.length === 0) {{
           cell.classList.add("filtered");
-          cell.style.background = "";
+          cell.innerHTML = "";
           cell.title = dateKey;
           continue;
         }}
@@ -516,25 +540,7 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
           .map(([p, c]) => `${{p}}${{archivedProjects.has(p.toLowerCase()) ? " (archived)" : ""}}: ${{c}}`)
           .join(", ");
         cell.title = `${{dateKey}}: ${{tip}}`;
-
-        if (visibleEntries.length === 1) {{
-          const [projectName] = visibleEntries[0];
-          const style = projectStyles[projectName]?.[intensity === "high" ? "highStyle" : "lowStyle"] || "";
-          cell.style.cssText = style;
-          continue;
-        }}
-
-        const stops = [];
-        let acc = 0;
-        for (const [projectName, count] of visibleEntries) {{
-          const startPct = (acc / total) * 100;
-          acc += count;
-          const endPct = (acc / total) * 100;
-          const color = projectStyles[projectName]?.[intensity === "high" ? "highColor" : "lowColor"] || "#6e7681";
-          stops.push(`${{color}} ${{startPct}}%`);
-          stops.push(`${{color}} ${{endPct}}%`);
-        }}
-        cell.style.background = `linear-gradient(to bottom, ${{stops.join(", ")}})`;
+        renderSegments(cell, visibleEntries, intensity);
       }}
 
       for (const entry of legendEntries) {{
