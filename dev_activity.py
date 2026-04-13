@@ -295,8 +295,33 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
     color_light_for = lambda p: project_color_light(p, project_index[p])
     pattern_for = lambda p: project_pattern(project_index[p])
 
+    nonzero_totals = sorted(sum(project_counts.values()) for project_counts in activity.values() if project_counts)
+
+    def percentile(values: list[int], q: float) -> int:
+        if not values:
+            return 0
+        idx = int((len(values) - 1) * q)
+        return values[idx]
+
+    # Intensity adapts to the observed data so "high" means high relative to recent activity.
+    low_mid_cutoff = max(1, percentile(nonzero_totals, 0.45))
+    mid_high_cutoff = max(low_mid_cutoff + 1, percentile(nonzero_totals, 0.8))
+
     def intensity_for_total(total: int) -> str:
-        return "high" if total >= 10 else "mid" if total >= 3 else "low"
+        if total >= mid_high_cutoff:
+            return "high"
+        if total >= low_mid_cutoff:
+            return "mid"
+        return "low"
+
+    low_label = "1" if low_mid_cutoff <= 1 else f"1-{low_mid_cutoff - 1}"
+    mid_upper = max(low_mid_cutoff, mid_high_cutoff - 1)
+    mid_label = (
+        str(low_mid_cutoff)
+        if low_mid_cutoff == mid_upper
+        else f"{low_mid_cutoff}-{mid_upper}"
+    )
+    high_label = f"{mid_high_cutoff}+"
 
     def style_for_project(p: str, color: str) -> str:
         pattern = pattern_for(p)
@@ -447,9 +472,9 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
   </div>
   <div class="intensity-legend">
     <span>Intensity:</span>
-    <span class="intensity-entry"><span class="legend-item cell low" style="background:#6e7681"></span><span>low (1-2)</span></span>
-    <span class="intensity-entry"><span class="legend-item cell mid" style="background:#6e7681"></span><span>mid (3-9)</span></span>
-    <span class="intensity-entry"><span class="legend-item cell high" style="background:#6e7681"></span><span>high (10+) with border</span></span>
+    <span class="intensity-entry"><span class="legend-item cell low" style="background:#6e7681"></span><span>low ({low_label})</span></span>
+    <span class="intensity-entry"><span class="legend-item cell mid" style="background:#6e7681"></span><span>mid ({mid_label})</span></span>
+    <span class="intensity-entry"><span class="legend-item cell high" style="background:#6e7681"></span><span>high ({high_label}) with border</span></span>
   </div>
   <div class="legend">
     {legend}
@@ -472,8 +497,8 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
       localStorage.setItem(storageKey, showArchived ? "1" : "0");
 
       function intensityForTotal(total) {{
-        if (total >= 10) return "high";
-        if (total >= 3) return "mid";
+        if (total >= {mid_high_cutoff}) return "high";
+        if (total >= {low_mid_cutoff}) return "mid";
         return "low";
       }}
 
