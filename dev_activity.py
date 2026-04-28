@@ -54,11 +54,29 @@ PROJECT_HUES = [
 ]
 
 # Stripe overlays used only after we exhaust distinct base hues.
+# Many distinct angles/spacings so different projects rarely look identical.
 OVERFLOW_STRIPE_PATTERNS = [
     "repeating-linear-gradient(45deg, rgba(255,255,255,0.62) 0 2px, transparent 2px 5px)",
     "repeating-linear-gradient(-45deg, rgba(255,255,255,0.62) 0 2px, transparent 2px 5px)",
     "repeating-linear-gradient(0deg, rgba(255,255,255,0.56) 0 2px, transparent 2px 5px)",
+    "repeating-linear-gradient(90deg, rgba(255,255,255,0.52) 0 3px, transparent 3px 6px)",
+    "repeating-linear-gradient(27deg, rgba(255,255,255,0.58) 0 1px, transparent 1px 4px)",
+    "repeating-linear-gradient(63deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 4px)",
+    "repeating-linear-gradient(135deg, rgba(255,255,255,0.48) 0 2px, transparent 2px 7px)",
+    "repeating-linear-gradient(-27deg, rgba(255,255,255,0.50) 0 3px, transparent 3px 5px)",
+    "repeating-linear-gradient(18deg, rgba(255,255,255,0.54) 0 2px, transparent 2px 6px)",
+    "repeating-linear-gradient(-63deg, rgba(255,255,255,0.52) 0 1px, transparent 1px 5px)",
+    "repeating-linear-gradient(72deg, rgba(255,255,255,0.53) 0 3px, transparent 3px 4px)",
+    "repeating-linear-gradient(180deg, rgba(255,255,255,0.50) 0 2px, transparent 2px 5px)",
 ]
+
+
+def _stable_project_name_hash(name: str) -> int:
+    """Deterministic 31-bit-ish mix so stripe choice is stable across runs."""
+    h = 0
+    for ch in name.casefold():
+        h = (h * 31 + ord(ch)) & 0x7FFFFFFF
+    return h
 
 
 def get_project_name(dev_root: Path, event_path: str) -> str | None:
@@ -263,13 +281,34 @@ def project_color_light(project: str, index: int) -> str:
     return f"hsl({hue}, 55%, 55%)"
 
 
-def project_pattern(index: int) -> str | None:
-    """Return stripe overlay only when project index exceeds base hue palette."""
+def assign_unique_overflow_patterns(
+    project_order: list[str], project_index: dict[str, int]
+) -> dict[str, str | None]:
+    """Stripe CSS per project: None for first N hues; each further project gets a unique pattern
+    until we run out of OVERFLOW_STRIPE_PATTERNS, then duplicates are unavoidable."""
     palette_size = len(PROJECT_HUES)
-    cycle = index // palette_size
-    if cycle == 0:
-        return None
-    return OVERFLOW_STRIPE_PATTERNS[(cycle - 1) % len(OVERFLOW_STRIPE_PATTERNS)]
+    n = len(OVERFLOW_STRIPE_PATTERNS)
+    pattern_by_project: dict[str, str | None] = {p: None for p in project_order}
+
+    overflow = [(p, project_index[p]) for p in project_order if project_index[p] >= palette_size]
+    overflow.sort(key=lambda x: x[1])
+
+    used_slots: set[int] = set()
+    for p, idx in overflow:
+        desired = (idx * 11 + _stable_project_name_hash(p) * 5) % n
+        if desired not in used_slots:
+            choice = desired
+            used_slots.add(choice)
+        else:
+            free = next((c for c in range(n) if c not in used_slots), None)
+            if free is not None:
+                choice = free
+                used_slots.add(choice)
+            else:
+                choice = desired
+        pattern_by_project[p] = OVERFLOW_STRIPE_PATTERNS[choice]
+
+    return pattern_by_project
 
 
 def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_path: Path) -> None:
@@ -291,9 +330,10 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
                 project_order.append(p)
 
     project_index = {p: i for i, p in enumerate(project_order)}
+    pattern_by_project = assign_unique_overflow_patterns(project_order, project_index)
     color_for = lambda p: project_color(p, project_index[p])
     color_light_for = lambda p: project_color_light(p, project_index[p])
-    pattern_for = lambda p: project_pattern(project_index[p])
+    pattern_for = lambda p: pattern_by_project.get(p)
 
     nonzero_totals = sorted(sum(project_counts.values()) for project_counts in activity.values() if project_counts)
 
@@ -444,7 +484,6 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
     .cell {{ width: 12px; height: 12px; border-radius: 2px; display: inline-block; }}
     .project-cell {{ position: relative; overflow: hidden; }}
     .cell-segment {{ position: absolute; left: 0; width: 100%; display: block; pointer-events: none; }}
-    .cell.filtered {{ visibility: hidden; }}
     .cell.empty {{ background: transparent; }}
     .cell.none {{ background: #21262d; }}
     .cell.none.weekend {{ opacity: 0.45; background: linear-gradient(135deg, transparent 46%, rgba(255,255,255,0.12) 50%, transparent 54%), #21262d; }}
@@ -519,6 +558,13 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
         cell.classList.add(intensity);
       }}
 
+      function applyNoActivityStyle(cell, dateKey) {{
+        cell.classList.remove("low", "mid", "high");
+        cell.classList.add("none");
+        const weekday = new Date(`${{dateKey}}T00:00:00`).getDay(); // 0=Sun..6=Sat
+        cell.classList.toggle("weekend", weekday === 0 || weekday === 6);
+      }}
+
       function segmentStyle(projectName, intensity) {{
         return projectStyles[projectName]?.[intensity === "high" ? "highStyle" : "lowStyle"] || "background:#6e7681";
       }}
@@ -549,13 +595,13 @@ def generate_graph(log_path: Path, out_path: Path, open_browser: bool, archive_p
           : allEntries.filter(([p]) => !archivedProjects.has(p.toLowerCase()));
 
         if (visibleEntries.length === 0) {{
-          cell.classList.add("filtered");
           cell.innerHTML = "";
           cell.title = dateKey;
+          applyNoActivityStyle(cell, dateKey);
           continue;
         }}
 
-        cell.classList.remove("filtered");
+        cell.classList.remove("none", "weekend");
         visibleEntries.sort((a, b) => b[1] - a[1]);
         const total = visibleEntries.reduce((sum, [, c]) => sum + c, 0);
         const intensity = intensityForTotal(total);
