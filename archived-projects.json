@@ -1,7 +1,12 @@
 [
+  "chat-sync",
+  "chatgpt-sync-ext",
   "claude-code-transcripts",
   "darkwave-slideshow",
   "jarvis-setup",
   "Jarvis-v3",
-  "pkm-test"
+  "pkm-test",
+  "skills",
+  "slack-export",
+  "tana-sync"
 ]
